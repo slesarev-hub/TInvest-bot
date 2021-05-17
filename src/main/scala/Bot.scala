@@ -2,6 +2,7 @@ import com.bot4s.telegram.api.RequestHandler
 import com.bot4s.telegram.api.declarative.Commands
 import com.bot4s.telegram.clients.FutureSttpClient
 import com.bot4s.telegram.future.{Polling, TelegramBot}
+import com.bot4s.telegram.models.Message
 import com.softwaremill.sttp.okhttp.OkHttpFutureBackend
 import exceptions.InvalidMessage
 import sandbox.SandboxMoneyAmount
@@ -23,20 +24,21 @@ class Bot extends TelegramBot with Polling with Commands[Future] {
       .map(balance => reply(ReplyDataHandler.balance(balance)))
   }
 
-  onCommand(stringToCommandFilter("insert")) { implicit msg =>
-    withArgs{
-      case Seq(moneyString) =>
-        SandboxMoneyAmount.fromString(moneyString)
-          .flatMap{
-            case Success(moneyAmount) => investApi.insertMoney(moneyAmount)
+  def moneyOperation(f: SandboxMoneyAmount => Future[Void])(implicit msg: Message) =
+      withArgs {
+        case Seq(moneyString) => SandboxMoneyAmount.fromString(moneyString)
+          .flatMap {
+            case Success(moneyAmount) => f(moneyAmount)
             case Failure(e) => Future.failed(InvalidMessage(e.getMessage))
           }
           .flatMap(_ => investApi.getBalance)
-          .transform{
+          .transform {
             case Success(balance) => Try(reply(ReplyDataHandler.balance(balance)))
             case Failure(exception) => Try(reply(exception.getMessage))
           }
-    }
-  }
+      }
+  onCommand(stringToCommandFilter("insert")) {implicit msg => moneyOperation(investApi.insertMoney)}
+
+  onCommand(stringToCommandFilter("withdraw")) { implicit msg => moneyOperation(investApi.withdrawMoney)}
 
 }

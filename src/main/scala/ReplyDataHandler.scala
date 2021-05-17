@@ -1,6 +1,5 @@
 import ru.tinkoff.invest.openapi.model.rest.CurrencyPosition
 
-
 object ReplyDataHandler {
   def balance(currencies: Seq[CurrencyPosition]): String = {
     currencies
