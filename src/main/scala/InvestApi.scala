@@ -1,7 +1,7 @@
-import exceptions.{NoCurrencyPosition, NotEnoughMoney}
-import ru.tinkoff.invest.openapi.model.rest.{CurrencyPosition, SandboxRegisterRequest, SandboxSetCurrencyBalanceRequest}
+import exceptions.{NoCurrencyPosition, NotEnoughMoney, WrongStockTicker}
+import openApi.{CurrencyConverter, SandboxMoneyAmount}
+import ru.tinkoff.invest.openapi.model.rest._
 import ru.tinkoff.invest.openapi.okhttp.OkHttpOpenApi
-import sandbox.{CurrencyConverter, SandboxMoneyAmount}
 
 import scala.collection.JavaConverters._
 import scala.compat.java8.FutureConverters.toScala
@@ -10,23 +10,16 @@ import scala.concurrent.{ExecutionContext, Future}
 class InvestApi {
   private val api = new OkHttpOpenApi(Env.getInvestToken, true)
   private val account = api.getSandboxContext.performRegistration(new SandboxRegisterRequest).join
-  implicit val ec = ExecutionContext.global
+  private implicit val ec = ExecutionContext.global
 
-
-  def setBalance(sandboxMoneyAmount: SandboxMoneyAmount): Future[Void] = {
+  private def setBalance(sandboxMoneyAmount: SandboxMoneyAmount): Future[Void] = {
     val request = new SandboxSetCurrencyBalanceRequest
     request.setCurrency(sandboxMoneyAmount.currency)
     request.setBalance(sandboxMoneyAmount.value.bigDecimal)
     toScala(api.getSandboxContext.setCurrencyBalance(request, account.getBrokerAccountId))
   }
 
-  def getBalance: Future[Seq[CurrencyPosition]] = toScala(
-    api
-      .getPortfolioContext
-      .getPortfolioCurrencies(account.getBrokerAccountId())
-  ).map(_.getCurrencies.asScala.toSeq)
-
-  def getMoneyPosition(sandboxMoneyAmount: SandboxMoneyAmount): Future[CurrencyPosition] = {
+  private def getMoneyPosition(sandboxMoneyAmount: SandboxMoneyAmount): Future[CurrencyPosition] = {
     getBalance.flatMap(_
       .filter(position => CurrencyConverter.fromCurrency(position.getCurrency) == sandboxMoneyAmount.currency)
       match {
@@ -36,6 +29,30 @@ class InvestApi {
     )
   }
 
+  def getBalance: Future[Seq[CurrencyPosition]] = toScala(
+    api
+      .getPortfolioContext
+      .getPortfolioCurrencies(account.getBrokerAccountId())
+  ).map(_.getCurrencies.asScala.toSeq)
+
+  def getStock(ticker: String): Future[MarketInstrument] =
+    toScala(api.getMarketContext.searchMarketInstrumentsByTicker(ticker.toUpperCase))
+      .map(_.getInstruments.asScala
+        .filter(_.getType == InstrumentType.STOCK)
+      )
+      .flatMap{
+        case Seq(hd) => Future(hd)
+        case _ => Future.failed(WrongStockTicker(ticker))
+      }
+
+  def getPrice(ticker: String): Future[SandboxMoneyAmount] = {
+    getStock(ticker)
+      .flatMap { stock =>
+        toScala(api.getMarketContext.getMarketOrderbook(stock.getFigi, 1))
+          .flatMap { opt => if (opt.isPresent) Future(opt.get()) else Future.failed(new WrongStockTicker(ticker)) }
+          .map(orderBook => SandboxMoneyAmount(CurrencyConverter.fromCurrency(stock.getCurrency), BigDecimal(orderBook.getLastPrice)))
+      }
+  }
   def insertMoney(sandboxMoneyAmount: SandboxMoneyAmount): Future[Void] = {
     getMoneyPosition(sandboxMoneyAmount)
       .flatMap(position => setBalance(sandboxMoneyAmount.copy(value = sandboxMoneyAmount.value + position.getBalance)))
@@ -49,5 +66,12 @@ class InvestApi {
           case true => Future.failed(new NotEnoughMoney)
         }
       )
+  }
+
+  def placeMarketOrder(operation: String, figi: String, lots: Int) = {
+    val request = new MarketOrderRequest()
+    request.setOperation(OperationType.fromValue(operation))
+    request.setLots(lots)
+    toScala(api.getOrdersContext.placeMarketOrder(figi, request, account.getBrokerAccountId))
   }
 }

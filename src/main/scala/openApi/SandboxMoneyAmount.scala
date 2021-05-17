@@ -1,4 +1,4 @@
-package sandbox
+package openApi
 
 import exceptions.{InvalidMoneyAmount, NegativeMoneyAmount}
 import ru.tinkoff.invest.openapi.model.rest.{MoneyAmount, SandboxCurrency}

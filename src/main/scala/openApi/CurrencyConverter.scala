@@ -1,4 +1,4 @@
-package sandbox
+package openApi
 
 import ru.tinkoff.invest.openapi.model.rest.{Currency, SandboxCurrency}
 
