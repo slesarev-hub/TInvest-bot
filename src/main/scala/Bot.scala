@@ -62,6 +62,10 @@ class Bot extends TelegramBot with Polling with Commands[Future] {
     }
   }
 
+  onCommand(stringToCommandFilter("list")) { implicit msg =>
+    investApi.getPortfolio
+      .map(portfolio => reply(ReplyDataHandler.portfolio(portfolio)))
+  }
 //  onCommand(stringToCommandFilter("sell")) { implicit msg => marketOperation("sell")}
 //
 //  onCommand(stringToCommandFilter("buy")) { implicit msg => marketOperation("buy")}

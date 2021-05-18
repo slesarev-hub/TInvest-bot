@@ -30,9 +30,7 @@ class InvestApi {
   }
 
   def getBalance: Future[Seq[CurrencyPosition]] = toScala(
-    api
-      .getPortfolioContext
-      .getPortfolioCurrencies(account.getBrokerAccountId())
+    api.getPortfolioContext.getPortfolioCurrencies(account.getBrokerAccountId())
   ).map(_.getCurrencies.asScala.toSeq)
 
   def getStock(ticker: String): Future[MarketInstrument] =
@@ -53,6 +51,11 @@ class InvestApi {
           .map(orderBook => SandboxMoneyAmount(CurrencyConverter.fromCurrency(stock.getCurrency), BigDecimal(orderBook.getLastPrice)))
       }
   }
+
+  def getPortfolio(): Future[Seq[PortfolioPosition]] = toScala(
+    api.getPortfolioContext.getPortfolio(account.getBrokerAccountId)
+  ).map(_.getPositions.asScala.toSeq)
+
   def insertMoney(sandboxMoneyAmount: SandboxMoneyAmount): Future[Void] = {
     getMoneyPosition(sandboxMoneyAmount)
       .flatMap(position => setBalance(sandboxMoneyAmount.copy(value = sandboxMoneyAmount.value + position.getBalance)))
@@ -68,7 +71,7 @@ class InvestApi {
       )
   }
 
-  def placeMarketOrder(operation: String, figi: String, lots: Int) = {
+  def placeMarketOrder(operation: String, figi: String, lots: Int): Future[PlacedMarketOrder] = {
     val request = new MarketOrderRequest()
     request.setOperation(OperationType.fromValue(operation))
     request.setLots(lots)
