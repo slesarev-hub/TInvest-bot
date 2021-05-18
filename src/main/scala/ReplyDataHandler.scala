@@ -1,5 +1,5 @@
 import openApi.SandboxMoneyAmount
-import ru.tinkoff.invest.openapi.model.rest.{CurrencyPosition, Portfolio, PortfolioPosition}
+import ru.tinkoff.invest.openapi.model.rest.{CurrencyPosition, InstrumentType, PlacedMarketOrder, Portfolio, PortfolioPosition}
 
 object ReplyDataHandler {
   def balance(currencies: Seq[CurrencyPosition]): String = {
@@ -13,7 +13,11 @@ object ReplyDataHandler {
 
   def portfolio(portfolio: Seq[PortfolioPosition]): String = {
     portfolio
-      .filter(_.getLots != 0)
+      .filter(_.getInstrumentType == InstrumentType.STOCK)
       .foldLeft("Stocks\n"){case (str, p) => str + p.getTicker + " " + p.getLots + "\n"}
+  }
+
+  def stockOperation(ticker: String, order: PlacedMarketOrder) = {
+    "Order: " + ticker.toUpperCase + " " + order.getRequestedLots + "\nStatus: " + order.getStatus
   }
 }

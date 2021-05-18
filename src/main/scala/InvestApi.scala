@@ -71,10 +71,11 @@ class InvestApi {
       )
   }
 
-  def placeMarketOrder(operation: String, figi: String, lots: Int): Future[PlacedMarketOrder] = {
+  def placeMarketOrder(operation: String, ticker: String, lots: Int): Future[PlacedMarketOrder] = {
     val request = new MarketOrderRequest()
     request.setOperation(OperationType.fromValue(operation))
     request.setLots(lots)
-    toScala(api.getOrdersContext.placeMarketOrder(figi, request, account.getBrokerAccountId))
+    getStock(ticker)
+      .flatMap(stock => toScala(api.getOrdersContext.placeMarketOrder(stock.getFigi, request, account.getBrokerAccountId)))
   }
 }

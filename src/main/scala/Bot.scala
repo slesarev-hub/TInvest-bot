@@ -34,14 +34,17 @@ class Bot extends TelegramBot with Polling with Commands[Future] {
       case _ => Future(reply("Invalid Message"))
     }
 
-//  private def marketOperation(op: String)(implicit msg: Message) =
-//    withArgs{
-//      case Seq(figi, lots) => investApi.placeMarketOrder(op, figi, lots.toInt)
-//        .flatMap{
-//          p => p.
-//        }
-//    }
-
+  private def stockOperation(op: String)(implicit msg: Message) = {
+    withArgs {
+      case Seq(ticker, lots) =>
+        investApi.placeMarketOrder(op, ticker, lots.toInt)
+          .transform {
+            case Success(order) => Try(reply(ReplyDataHandler.stockOperation(ticker, order)))
+            case Failure(exception) => Try(reply(exception.getMessage.toLowerCase))
+          }
+      case _ => Future(reply("Invalid Message"))
+    }
+  }
   onCommand(stringToCommandFilter("balance")) { implicit msg =>
     investApi.getBalance
       .map(balance => reply(ReplyDataHandler.balance(balance)))
@@ -56,7 +59,7 @@ class Bot extends TelegramBot with Polling with Commands[Future] {
       case Seq(ticker) => investApi.getPrice(ticker)
         .map(money => reply(ReplyDataHandler.tickerPrice(ticker.toUpperCase, money)))
         .transform{
-          case Failure(exception) => Try(reply(exception.getMessage))
+          case Failure(exception) => Try(reply(exception.getMessage.toLowerCase))
         }
       case _ => Future(reply("Invalid Message"))
     }
@@ -66,7 +69,8 @@ class Bot extends TelegramBot with Polling with Commands[Future] {
     investApi.getPortfolio
       .map(portfolio => reply(ReplyDataHandler.portfolio(portfolio)))
   }
-//  onCommand(stringToCommandFilter("sell")) { implicit msg => marketOperation("sell")}
-//
-//  onCommand(stringToCommandFilter("buy")) { implicit msg => marketOperation("buy")}
+
+  onCommand(stringToCommandFilter("sell")) { implicit msg => stockOperation("Sell")}
+
+  onCommand(stringToCommandFilter("buy")) { implicit msg => stockOperation("Buy")}
 }
